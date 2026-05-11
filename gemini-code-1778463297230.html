@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NZO | Athlete Mental Skills Assessment</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --nzo-blue: #0a192f;
+            --nzo-accent: #00ff41; /* Electric Green */
+            --nzo-teal: #008080;
+            --nzo-text: #e6f1ff;
+            --nzo-bg: #020c1b;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--nzo-bg);
+            color: var(--nzo-text);
+            margin: 0; padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 800px; margin: 0 auto;
+            background: var(--nzo-blue);
+            padding: 40px; border-radius: 12px;
+            border: 1px solid rgba(0, 255, 65, 0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        h1 { border-left: 4px solid var(--nzo-accent); padding-left: 15px; letter-spacing: 2px; }
+        .instructions { color: var(--nzo-teal); margin-bottom: 30px; font-size: 0.9em; }
+
+        .question-block {
+            margin-bottom: 25px; padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .options {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-top: 15px;
+        }
+
+        input[type="radio"] { accent-color: var(--nzo-accent); width: 18px; height: 18px; cursor: pointer; }
+
+        button {
+            background: transparent; color: var(--nzo-accent);
+            border: 2px solid var(--nzo-accent);
+            padding: 15px 30px; font-weight: bold; border-radius: 4px;
+            cursor: pointer; transition: 0.3s; width: 100%;
+        }
+
+        button:hover { background: var(--nzo-accent); color: var(--nzo-blue); }
+
+        #results-screen { display: none; }
+        .score-card { background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px; margin-top: 20px; }
+        .recommendation { border-left: 3px solid var(--nzo-teal); padding-left: 15px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="quiz-screen">
+        <h1>NZO ASSESSMENT</h1>
+        <p class="instructions">Rate yourself from 1 (Never) to 5 (Always) based on your most recent competitive season.</p>
+        <form id="assessmentForm"></form>
+        <button type="button" onclick="processResults()">GENERATE PERFORMANCE REPORT</button>
+    </div>
+
+    <div id="results-screen">
+        <h1>PERFORMANCE PROFILE</h1>
+        <canvas id="resultsChart" width="400" height="200"></canvas>
+        <div id="feedbackOutput"></div>
+        <button onclick="window.print()" style="margin-top:20px; border-color: var(--nzo-teal); color: var(--nzo-teal);">DOWNLOAD PDF REPORT</button>
+    </div>
+</div>
+
+<script>
+const questions = [
+    { text: "I maintain belief in my skills even after a major mistake.", cat: "Confidence" },
+    { text: "I can block out crowd noise or negative comments easily.", cat: "Focus" },
+    { text: "I stay calm when a referee makes a call I disagree with.", cat: "Emotional Control" },
+    { text: "I seek out extra training sessions without being told to.", cat: "Motivation" },
+    { text: "I bounce back quickly from a loss and focus on the next game.", cat: "Resilience" },
+    { text: "I can push through physical pain or fatigue to finish strong.", cat: "Mental Toughness" },
+    // ... logic repeats for 25 questions total across categories
+];
+
+// Fill out remaining 19 questions dynamically for brevity in this example
+for(let i=6; i<25; i++) {
+    const cats = ["Confidence", "Focus", "Emotional Control", "Motivation", "Resilience", "Mental Toughness"];
+    questions.push({ text: `Assessment Metric ${i+1}: I consistently apply my mental routine in high-pressure moments.`, cat: cats[i % cats.length] });
+}
+
+const form = document.getElementById('assessmentForm');
+questions.forEach((q, i) => {
+    form.innerHTML += `
+        <div class="question-block">
+            <p>${i+1}. ${q.text}</p>
+            <div class="options">
+                <span>1</span>
+                ${[1,2,3,4,5].map(v => `<input type="radio" name="q${i}" value="${v}" required>`).join('')}
+                <span>5</span>
+            </div>
+        </div>`;
+});
+
+function processResults() {
+    const data = new FormData(form);
+    let scores = {};
+    
+    questions.forEach((q, i) => {
+        const val = parseInt(data.get(`q${i}`));
+        scores[q.cat] = (scores[q.cat] || 0) + val;
+    });
+
+    // Average the scores (Assuming ~4 questions per category)
+    Object.keys(scores).forEach(cat => {
+        const count = questions.filter(q => q.cat === cat).length;
+        scores[cat] = (scores[cat] / count).toFixed(1);
+    });
+
+    showResults(scores);
+}
+
+function showResults(scores) {
+    document.getElementById('quiz-screen').style.display = 'none';
+    document.getElementById('results-screen').style.display = 'block';
+
+    const ctx = document.getElementById('resultsChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: Object.keys(scores),
+            datasets: [{
+                label: 'Mental Skill Level',
+                data: Object.values(scores),
+                backgroundColor: 'rgba(0, 255, 65, 0.2)',
+                borderColor: '#00ff41',
+                pointBackgroundColor: '#00ff41'
+            }]
+        },
+        options: {
+            scales: { r: { min: 0, max: 5, ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.1)' } } }
+        }
+    });
+
+    generateFeedback(scores);
+}
+
+function generateFeedback(scores) {
+    let html = "<div class='score-card'>";
+    for (const [cat, score] of Object.entries(scores)) {
+        let rec = "";
+        if (score >= 4) rec = "<strong>Strength:</strong> Keep refining this through elite-level pressure simulation.";
+        else if (score >= 3) rec = "<strong>Development:</strong> Consistent daily habits will move this to a 90th percentile skill.";
+        else rec = `<strong>NZO Priority:</strong> ${getTraining(cat)}`;
+        
+        html += `<div class="recommendation"><strong>${cat}: ${score}/5</strong><br>${rec}</div>`;
+    }
+    html += "</div>";
+    document.getElementById('feedbackOutput').innerHTML = html;
+}
+
+function getTraining(cat) {
+    const reps = {
+        "Motivation": "Execute a 'Goal-Setting Audit'. Transition from outcome goals to process-based daily targets.",
+        "Focus": "Implement 3-minute Box Breathing sessions before training to sharpen your 'Reset' trigger.",
+        "Resilience": "The '24-Hour Rule': Analyze the film, extract the lesson, then delete the emotional weight.",
+        "Confidence": "Evidence Journaling: Record 3 'wins' after every session to build a logical foundation for self-belief."
+    };
+    return reps[cat] || "Focus on structured mental reps and consistent routine.";
+}
+</script>
+</body>
+</html>
